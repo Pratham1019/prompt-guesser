@@ -1,0 +1,129 @@
+import asyncio
+import time
+from typing import Awaitable, Callable, Type, TypeVar, cast
+
+from google import genai
+from google.genai import types
+from pydantic import BaseModel
+
+from app.config import settings
+from app.logging import logger
+from app.services.ai.exceptions import AIClientConfigurationError, AIError
+
+R = TypeVar("R")
+T = TypeVar("T", bound=BaseModel)
+
+
+class AIClient:
+    """
+    Core client for communicating with AI providers.
+    Abstracts SDK logic, authentication, retries, and structured responses.
+    """
+
+    def __init__(self) -> None:
+        if not settings.AI_API_KEY or settings.AI_API_KEY == "your-ai-api-key-here":
+            raise AIClientConfigurationError("AI_API_KEY is not configured in settings.")
+
+        # Initialize the official google-genai client
+        self.client = genai.Client(api_key=settings.AI_API_KEY)
+        self.retry_count = settings.AI_RETRY_COUNT
+        self.timeout = settings.AI_TIMEOUT_SECONDS
+
+    async def _execute_with_retry(self, operation: Callable[[], Awaitable[R]], context: str) -> R:
+        """Executes an async operation with exponential backoff retries."""
+        last_exception: Exception | None = None
+        for attempt in range(self.retry_count):
+            try:
+                start_time = time.time()
+                result = await asyncio.wait_for(operation(), timeout=self.timeout)
+                duration = time.time() - start_time
+                logger.info(
+                    f"AI operation '{context}' succeeded.",
+                    extra={"attempt": attempt + 1, "duration": duration},
+                )
+                return result
+            except asyncio.TimeoutError as e:
+                last_exception = e
+                logger.warning(
+                    f"AI operation '{context}' timed out.",
+                    extra={"attempt": attempt + 1, "max_attempts": self.retry_count},
+                )
+            except Exception as e:
+                last_exception = e
+                logger.warning(
+                    f"AI operation '{context}' failed: {str(e)}",
+                    extra={"attempt": attempt + 1, "max_attempts": self.retry_count},
+                )
+
+            if attempt < self.retry_count - 1:
+                await asyncio.sleep(2**attempt)
+
+        logger.error(
+            f"AI operation '{context}' completely failed after {self.retry_count} attempts."
+        )
+        raise AIError(f"Failed to execute '{context}': {str(last_exception)}") from last_exception
+
+    async def generate_text_structured(self, prompt: str, schema: Type[T]) -> T:
+        """Generates structured JSON output strictly conforming to a Pydantic schema."""
+
+        async def _op() -> T:
+            response = await self.client.aio.models.generate_content(
+                model=settings.AI_TEXT_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0.7,
+                ),
+            )
+
+            if hasattr(response, "parsed") and response.parsed is not None:
+                return cast(T, response.parsed)
+
+            # Fallback manual parsing just in case
+            if not response.text:
+                raise Exception("No text response returned by the AI provider.")
+            return schema.model_validate_json(response.text)
+
+        return await self._execute_with_retry(_op, "generate_text_structured")
+
+    async def generate_image(self, prompt: str) -> bytes:
+        """Generates a JPEG image from a text prompt and returns bytes."""
+
+        async def _op() -> bytes:
+            response = await self.client.aio.models.generate_images(
+                model=settings.AI_IMAGE_MODEL,
+                prompt=prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                    output_mime_type="image/jpeg",
+                    aspect_ratio="1:1",
+                ),
+            )
+            if not response.generated_images:
+                raise Exception("No image was returned by the AI provider.")
+
+            gen_image = response.generated_images[0].image
+            if not gen_image or not gen_image.image_bytes:
+                raise Exception("No image bytes returned by the AI provider.")
+
+            return gen_image.image_bytes
+
+        return await self._execute_with_retry(_op, "generate_image")
+
+    async def generate_embedding(self, text: str) -> list[float]:
+        """Generates a text embedding vector."""
+
+        async def _op() -> list[float]:
+            response = await self.client.aio.models.embed_content(
+                model=settings.AI_EMBEDDING_MODEL,
+                contents=text,
+                config=types.EmbedContentConfig(
+                    output_dimensionality=settings.AI_EMBEDDING_DIMENSION
+                ),
+            )
+            if not response.embeddings or not response.embeddings[0].values:
+                raise Exception("No embedding vector was returned by the AI provider.")
+            return response.embeddings[0].values
+
+        return await self._execute_with_retry(_op, "generate_embedding")
