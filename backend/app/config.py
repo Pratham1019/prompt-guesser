@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     AI_EMBEDDING_MODEL: str = "gemini-embedding-2"
     AI_EMBEDDING_DIMENSION: int = 768
     AI_TEXT_MODEL: str = "gemini-2.5-flash"
+    AI_EVALUATOR_TYPE: str = "gemini"
     AI_RETRY_COUNT: int = 3
     AI_TIMEOUT_SECONDS: int = 30
 

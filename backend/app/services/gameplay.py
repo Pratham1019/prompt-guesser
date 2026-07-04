@@ -1,6 +1,5 @@
 import zoneinfo
 from datetime import date, datetime, timezone
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +9,7 @@ from app.config import settings
 from app.logging import logger
 from app.models.challenge import PromptChallenge
 from app.models.game import GameSession, GuessAttempt
-from app.services.evaluation import BaseEvaluationService, JaccardEvaluationService
+from app.services.evaluation import BaseEvaluationService
 
 
 class GameplayError(Exception):
@@ -53,10 +52,10 @@ class GameplayService:
     def __init__(
         self,
         db: AsyncSession,
-        evaluation_svc: Optional[BaseEvaluationService] = None,
+        evaluation_svc: BaseEvaluationService,
     ) -> None:
         self.db = db
-        self.evaluation_svc = evaluation_svc or JaccardEvaluationService()
+        self.evaluation_svc = evaluation_svc
         self.timezone = zoneinfo.ZoneInfo(settings.SCHEDULER_TIMEZONE)
 
     def get_local_today(self) -> date:

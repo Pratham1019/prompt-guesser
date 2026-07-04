@@ -13,6 +13,7 @@ from app.schemas.game import (
     GuessAttemptCreate,
     GuessAttemptResponse,
 )
+from app.services.evaluation import BaseEvaluationService, get_evaluation_service
 from app.services.gameplay import (
     ChallengeNotFoundError,
     GameplayError,
@@ -84,12 +85,13 @@ def map_session_to_schema(session: GameSession, challenge: PromptChallenge) -> G
 async def get_today_challenge(
     player_id: str = Depends(get_player_id),
     db: AsyncSession = Depends(get_db),
+    evaluation_svc: BaseEvaluationService = Depends(get_evaluation_service),
 ):
     """
     Retrieves today's Daily Challenge details (excluding private fields)
     along with the player's active session state and attempts history.
     """
-    gameplay_svc = GameplayService(db)
+    gameplay_svc = GameplayService(db, evaluation_svc=evaluation_svc)
     try:
         challenge = await gameplay_svc.get_today_challenge()
         session = await gameplay_svc.get_or_create_game_session(player_id, challenge.id)
@@ -116,13 +118,14 @@ async def submit_guess(
     guess_in: GuessAttemptCreate,
     player_id: str = Depends(get_player_id),
     db: AsyncSession = Depends(get_db),
+    evaluation_svc: BaseEvaluationService = Depends(get_evaluation_service),
 ):
     """
     Submits a guess text for today's daily challenge.
     Calculates similarity, records the attempt, checks completions,
     and returns the updated game state.
     """
-    gameplay_svc = GameplayService(db)
+    gameplay_svc = GameplayService(db, evaluation_svc=evaluation_svc)
     try:
         # Retrieve today's challenge to ensure player is guessing the active one
         challenge = await gameplay_svc.get_today_challenge()

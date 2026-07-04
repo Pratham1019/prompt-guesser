@@ -11,6 +11,10 @@ class EvaluationResult(BaseModel):
 
     score: float
     feedback: Optional[str] = None
+    matched_concepts: list[str] = []
+    missing_concepts: list[str] = []
+    reasoning: str = ""
+    confidence_score: float = 1.0
 
 
 class BaseEvaluationService(ABC):
