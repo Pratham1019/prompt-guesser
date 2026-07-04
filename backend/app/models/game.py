@@ -35,9 +35,19 @@ class GameSession(Base):
             "attempts_used <= 5",
             name="max_attempts_constraint",
         ),
+        UniqueConstraint(
+            "player_id",
+            "prompt_challenge_id",
+            name="uq_game_session_player_challenge",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    player_id: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        index=True,
+    )
     prompt_challenge_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("prompt_challenges.id", ondelete="RESTRICT"),
