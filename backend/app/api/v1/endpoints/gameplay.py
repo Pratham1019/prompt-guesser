@@ -1,9 +1,13 @@
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.config import settings
 from app.logging import logger
 from app.models.challenge import PromptChallenge
 from app.models.game import GameSession
@@ -151,3 +155,133 @@ async def submit_guess(
         raise HTTPException(
             status_code=500, detail="Internal server error during guess validation."
         ) from e
+
+
+class ChallengeDebugOverride(BaseModel):
+    prompt: str
+    image_url: Optional[str] = None
+
+
+@router.post("/debug/override-challenge")
+async def override_challenge(payload: ChallengeDebugOverride, db: AsyncSession = Depends(get_db)):
+    """
+    Developer override endpoint. Allows changing today's target prompt and
+    image URL for local manual testing.
+    Disabled in production.
+    """
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(
+            status_code=403, detail="Debug operations are disabled in production environment."
+        )
+
+    from sqlalchemy import select
+
+    from app.models.challenge import PromptChallenge
+
+    today = date.today()
+    stmt = select(PromptChallenge).where(PromptChallenge.publish_date == today)
+    result = await db.execute(stmt)
+    challenge = result.scalar_one_or_none()
+
+    from app.services.ai.client import AIClient
+    from app.services.ai.embedding_generator import EmbeddingGeneratorService
+    from app.services.ai.image_generator import ImageGeneratorService
+    from app.services.storage import StorageService
+
+    embedding_status = "success"
+    image_status = "success"
+
+    try:
+        ai_client = AIClient()
+    except Exception as conf_err:
+        ai_client = None
+        embedding_status = f"skipped: {conf_err}"
+        image_status = f"skipped: {conf_err}"
+
+    # 1. Generate embedding matching the new prompt
+    if ai_client:
+        try:
+            embedding_svc = EmbeddingGeneratorService(ai_client)
+            embed_data = await embedding_svc.generate_embedding(payload.prompt)
+            target_embedding = embed_data.vector
+            embedding_model_name = embed_data.model_name
+        except Exception as e:
+            logger.warning(
+                f"Could not generate embedding for debug override: {e}. Keeping fallback mock embedding."
+            )
+            target_embedding = [0.01] * 768
+            embedding_model_name = "mock-model"
+            embedding_status = f"failed: {e}"
+    else:
+        target_embedding = [0.01] * 768
+        embedding_model_name = "mock-model"
+
+    # 2. Generate and upload image matching the new prompt
+    image_url = payload.image_url
+    if not image_url:
+        if ai_client:
+            try:
+                image_svc = ImageGeneratorService(ai_client)
+                storage_svc = StorageService()
+                image_data = await image_svc.generate_image(payload.prompt)
+                image_url = await storage_svc.upload_image(image_data.image_bytes)
+            except Exception as e:
+                logger.warning(
+                    f"Could not generate image for debug override: {e}. Falling back to dynamic mock placeholder image."
+                )
+                image_status = f"failed: {e} (using Picsum Photos fallback)"
+                try:
+                    import httpx
+
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(
+                            "https://picsum.photos/600/450", follow_redirects=True
+                        )
+                        if resp.status_code == 200:
+                            storage_svc = StorageService()
+                            image_url = await storage_svc.upload_image(resp.content)
+                        else:
+                            image_url = "/storage/images/test_astronaut.jpg"
+                except Exception as fetch_err:
+                    logger.error(f"Failed to fetch mock placeholder image: {fetch_err}")
+                    image_url = "/storage/images/test_astronaut.jpg"
+        else:
+            image_url = "/storage/images/test_astronaut.jpg"
+
+    if not challenge:
+        # Create a new one
+        challenge = PromptChallenge(
+            prompt=payload.prompt,
+            image_url=image_url,
+            target_embedding=target_embedding,
+            embedding_model_name=embedding_model_name,
+            status="published",
+            publish_date=today,
+        )
+        db.add(challenge)
+    else:
+        challenge.prompt = payload.prompt
+        challenge.image_url = image_url
+        challenge.target_embedding = target_embedding
+        challenge.embedding_model_name = embedding_model_name
+
+    await db.commit()
+    await db.refresh(challenge)
+
+    # Optional: Delete all game sessions for this challenge to force a clean reset for all players
+    # so they can test the new prompt from attempt 1.
+    from app.models.game import GameSession
+
+    del_stmt = delete(GameSession).where(GameSession.prompt_challenge_id == challenge.id)
+    await db.execute(del_stmt)
+    await db.commit()
+
+    return {
+        "message": "Challenge updated successfully. All active sessions reset.",
+        "challenge_id": challenge.id,
+        "image_url": challenge.image_url,
+        "debug_info": {
+            "image_generation": image_status,
+            "embedding_generation": embedding_status,
+        },
+    }

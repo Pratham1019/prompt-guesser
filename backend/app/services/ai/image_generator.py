@@ -1,29 +1,21 @@
-from app.logging import logger
+from typing import Optional
+
 from app.services.ai.client import AIClient
-from app.services.ai.exceptions import ImageGenerationError
+from app.services.ai.image import get_image_generator
 from app.services.ai.schemas import GeneratedImage
 
 
 class ImageGeneratorService:
     """
-    Generates images from prompts using the configured AI image model.
+    Orchestration service wrapper that resolves the configured image provider
+    and delegates image generation to it.
     """
 
-    def __init__(self, client: AIClient) -> None:
-        self.client = client
+    def __init__(self, client: Optional[AIClient] = None) -> None:
+        self.provider = get_image_generator()
 
     async def generate_image(self, prompt: str) -> GeneratedImage:
         """
-        Requests an image generation for the provided prompt.
-        Validates the output before returning.
+        Generates an image from a prompt using the active configured provider.
         """
-        try:
-            image_bytes = await self.client.generate_image(prompt)
-            if not image_bytes:
-                raise ImageGenerationError("Received empty image bytes from AI client.")
-
-            # Additional validation of image bytes (like magic numbers for JPEG) can be done here.
-            return GeneratedImage(image_bytes=image_bytes)
-        except Exception as e:
-            logger.error(f"Failed to generate image: {e}")
-            raise ImageGenerationError(f"Image generation failed: {e}") from e
+        return await self.provider.generate_image(prompt)

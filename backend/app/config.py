@@ -55,10 +55,15 @@ class Settings(BaseSettings):
     AI_IMAGE_MODEL: str = "imagen-4.0-generate-001"
     AI_EMBEDDING_MODEL: str = "gemini-embedding-2"
     AI_EMBEDDING_DIMENSION: int = 768
-    AI_TEXT_MODEL: str = "gemini-2.5-flash"
+    AI_TEXT_MODEL: str = "gemini-3.1-flash-lite"
     AI_EVALUATOR_TYPE: str = "gemini"
     AI_RETRY_COUNT: int = 3
     AI_TIMEOUT_SECONDS: int = 30
+
+    # Hugging Face Settings
+    IMAGE_PROVIDER: str = "huggingface"
+    HF_API_TOKEN: str = "your-hf-token-here"
+    HF_IMAGE_MODEL: str = "black-forest-labs/FLUX.1-schnell"
 
     # Storage Configuration
     STORAGE_LOCAL_DIR: str = "./storage/images"

@@ -1,7 +1,9 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.health import router as health_router
 from app.api.v1.router import api_router
@@ -46,3 +48,8 @@ app.include_router(health_router)
 
 # Register v1 API endpoints
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Mount local storage directory to serve static image assets
+os.makedirs("storage", exist_ok=True)
+os.makedirs("storage/images", exist_ok=True)
+app.mount("/storage", StaticFiles(directory="storage"), name="storage")

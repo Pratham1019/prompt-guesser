@@ -87,30 +87,6 @@ class AIClient:
 
         return await self._execute_with_retry(_op, "generate_text_structured")
 
-    async def generate_image(self, prompt: str) -> bytes:
-        """Generates a JPEG image from a text prompt and returns bytes."""
-
-        async def _op() -> bytes:
-            response = await self.client.aio.models.generate_images(
-                model=settings.AI_IMAGE_MODEL,
-                prompt=prompt,
-                config=types.GenerateImagesConfig(
-                    number_of_images=1,
-                    output_mime_type="image/jpeg",
-                    aspect_ratio="1:1",
-                ),
-            )
-            if not response.generated_images:
-                raise Exception("No image was returned by the AI provider.")
-
-            gen_image = response.generated_images[0].image
-            if not gen_image or not gen_image.image_bytes:
-                raise Exception("No image bytes returned by the AI provider.")
-
-            return gen_image.image_bytes
-
-        return await self._execute_with_retry(_op, "generate_image")
-
     async def generate_embedding(self, text: str) -> list[float]:
         """Generates a text embedding vector."""
 

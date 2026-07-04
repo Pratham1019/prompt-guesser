@@ -32,7 +32,7 @@ class GeminiEvaluationSchema(BaseModel):
     )
     player_feedback: str = Field(
         ...,
-        description="Encouraging, constructive hint for the player helping them find what is missing (without revealing the original prompt itself).",
+        description="Constructive hint for the player helping them find what is missing. Keep it extremely brief (strictly under 15 words). No emojis.",
     )
     confidence_score: float = Field(
         ...,
@@ -68,16 +68,16 @@ Consider the following evaluation categories:
 6. Mood & Color Palette (e.g., vibrant pastel, whimsical, dark and gritty)
 
 Scoring Guidelines:
-- 100.0: Perfect semantic equivalent. Meaning is identical, even if phrasing is different.
-- 90.0 - 99.0: Captures all key concepts (subject, environment, style, lighting) with only minor descriptive nuances missing.
-- 70.0 - 89.0: Captures the main subject and setting, but omits style, composition, or lighting details.
-- 40.0 - 69.0: Captures the subject but misses the entire environment/style, or vice versa (e.g., "A fish in Tokyo" vs "A giant koi fish swimming through Tokyo streets during heavy rain").
-- 10.0 - 39.0: Weak match. Captures isolated words or a broad general category, but misses the core action and context.
-- 0.0 - 9.0: Completely unrelated.
+- 100.0: Perfect semantic equivalent. Meaning is identical, even if phrasing, synonyms, or minor abbreviations are used (e.g., "bg" for "background", "relaxed" for "chilling", "massive" for "giant"). If all core concepts, subjects, actions, and settings are fully matched with identical meaning, award 100.0.
+- 95.0 - 99.0: Captures all key concepts with only extremely minor or trivial nuances missing.
+- 80.0 - 94.0: Captures the main subject and setting, but omits style, composition, or lighting details.
+- 50.0 - 79.0: Captures the subject but misses the environment/style, or vice versa.
+- 10.0 - 49.0: Weak match. Captures isolated words or a broad category, but misses context.
 
 Feedback Guidelines:
-- Write concise, constructive feedback helping the player refine their next guess.
-- Describe what they matched and what general category of details they missed (e.g., "You got the subject right, but you need to specify the environment and style.").
+- Write extremely brief, direct feedback/hint (strictly 1 sentence, under 15 words) helping the player refine their next guess.
+- Describe what they matched and the most critical general category they missed (e.g., "Add the art style," "Specify the setting").
+- CRITICAL: Do NOT use any emojis in the feedback/hint. Keep it strictly plain text.
 - CRITICAL: Do NOT reveal the original prompt's hidden details or write the original prompt text in the feedback!
 
 You must output a structured JSON response strictly conforming to the requested schema.
