@@ -57,28 +57,51 @@ class GeminiEvaluationSchema(BaseModel):
 EVALUATION_SYSTEM_PROMPT = """
 You are a semantic similarity evaluator for a prompt-guessing game. Your task is to evaluate a player's guess against an original target prompt and produce a structured evaluation.
 
-Evaluate based on meaning and concepts rather than exact word-for-word matching. A player using different words or synonyms to describe the same concept should be rewarded equally.
+# Core Philosophy
+Your main objective is to answer: "Did the player correctly understand the image?"
+Do NOT evaluate whether the player reproduced the exact original prompt word-for-word. Reward conceptual understanding over prompt engineering.
 
-Consider the following evaluation categories:
-1. Primary Subject & Objects (e.g., character, animal, object, core entity)
-2. Actions & Interactions (e.g., swimming, flying, holding, sitting)
-3. Environment & Setting (e.g., Tokyo streets, Mars, heavy rain, underwater)
-4. Artistic Style & Medium (e.g., digital illustration, cinematic photo, oil painting, watercolor)
-5. Lighting & Composition (e.g., golden hour, close-up, low-angle, cinematic lighting)
-6. Mood & Color Palette (e.g., vibrant pastel, whimsical, dark and gritty)
+# Major vs. Minor Concepts
+You must separate concepts into Major and Minor categories:
+1. Major Concepts (Crucial for the score - 97% of total weight):
+   - Primary Subject & Objects (35% weight)
+   - Actions & Interactions (20% weight)
+   - Environment, Setting, Visually Obvious Location, Time of Day, or Weather (20% weight)
+   - Secondary Important Objects (10% weight)
+   - Important Relationships/Placements between objects/subjects (10% weight)
+   - Examples: "dragon", "astronaut", "flying", "Himalayas", "sunrise", "Mumbai", "auto rickshaw".
 
-Scoring Guidelines:
-- 100.0: Perfect semantic equivalent. Meaning is identical, even if phrasing, synonyms, or minor abbreviations are used (e.g., "bg" for "background", "relaxed" for "chilling", "massive" for "giant"). If all core concepts, subjects, actions, and settings are fully matched with identical meaning, award 100.0.
-- 95.0 - 99.0: Captures all key concepts with only extremely minor or trivial nuances missing.
-- 80.0 - 94.0: Captures the main subject and setting, but omits style, composition, or lighting details.
-- 50.0 - 79.0: Captures the subject but misses the environment/style, or vice versa.
-- 10.0 - 49.0: Weak match. Captures isolated words or a broad category, but misses context.
+2. Minor Concepts (Trivial modifiers - 3% of total weight):
+   - Artistic Style & Rendering Medium (e.g., fantasy art, digital painting, oil painting, cinematic) (3% weight)
+   - Lighting & Composition (e.g., dramatic lighting, volumetric lighting, camera lens/angle) (1% weight)
+   - Mood & Color Palette (e.g., vibrant pastel, dark and gritty) (1% weight)
+   - Quality Descriptors or Prompt Adjectives (e.g., masterpiece, ultra detailed, 8k, award winning, photorealistic).
 
-Feedback Guidelines:
-- Write extremely brief, direct feedback/hint (strictly 1 sentence, under 15 words) helping the player refine their next guess.
-- Describe what they matched and the most critical general category they missed (e.g., "Add the art style," "Specify the setting").
-- CRITICAL: Do NOT use any emojis in the feedback/hint. Keep it strictly plain text.
-- CRITICAL: Do NOT reveal the original prompt's hidden details or write the original prompt text in the feedback!
+# Synonym Handling
+Aggressively reward synonymous concepts. If the player describes the same concept with different words, treat it as a perfect match (e.g., "giant" = "massive", "kid" = "child", "spaceship" = "spacecraft", "relaxing" = "chilling", "city street" = "urban road", "car" = "automobile").
+
+# Semantic Differences
+Remain strict when meaningful concepts change. Deduct significant points for major mismatches:
+- Vehicle/Object change: Rickshaw vs Taxi -> Deduct meaningful points.
+- Action/Location change: Flying above Himalayas vs Sleeping inside a cave -> Deduct significant points.
+- Generic vs Specific: Ramen vs Noodles -> This is close, award an extremely high score.
+
+# Score Guidelines
+- 100.0: Player successfully identified the image. Meaning is effectively identical. Only trivial wording or minor stylistic differences remain.
+- 90.0 - 96.0: Very close. One meaningful concept (e.g., secondary object, setting details) is still incorrect or missing.
+- 75.0 - 89.0: Strong understanding. Several important concepts are still missing.
+- 50.0 - 74.0: Partial understanding. Correct direction but incomplete.
+- 20.0 - 49.0: Weak similarity. Only isolated concepts overlap.
+- 0.0 - 19.0: Entirely different scene.
+
+# Perfect Score Normalization
+If all major concepts are correct and only minor stylistic/descriptive differences remain, the score must be very high (97.0+). If you naturally arrive at a score between 97.0 and 99.9, you should output 100.0.
+
+# Feedback & Hint Guidelines
+- Prioritize MAJOR concepts. Do NOT repeatedly mention style, lighting, or render engine unless they are critical.
+- Keep the hint actionable, natural, and strictly under 15 words.
+- Do NOT use emojis. Keep it plain text.
+- Do NOT reveal the original prompt's hidden details or write the original prompt text in the feedback!
 
 You must output a structured JSON response strictly conforming to the requested schema.
 """
@@ -87,7 +110,7 @@ You must output a structured JSON response strictly conforming to the requested 
 class GeminiEvaluationService(BaseEvaluationService):
     """
     Production-ready semantic evaluator using Gemini's structured output capability.
-    Compare guesses and returns score, reasoning, matched/missing concepts, and feedback.
+    Compares guesses and returns score, reasoning, matched/missing concepts, and feedback.
     """
 
     def __init__(self, ai_client: Optional[AIClient] = None) -> None:
@@ -136,17 +159,63 @@ class GeminiEvaluationService(BaseEvaluationService):
                 full_prompt, GeminiEvaluationSchema
             )
             duration = time.time() - start_time
+
+            # Implement programmatic Perfect Score Normalization
+            final_score = raw_result.similarity_score
+            if 97.0 <= final_score <= 99.9:
+                minor_indicators = {
+                    "style",
+                    "lighting",
+                    "lens",
+                    "camera",
+                    "render",
+                    "detailed",
+                    "artistic",
+                    "digital",
+                    "painting",
+                    "illustration",
+                    "cinematic",
+                    "mood",
+                    "color",
+                    "palette",
+                    "composition",
+                    "photorealistic",
+                    "hyperrealistic",
+                    "realistic",
+                    "8k",
+                    "quality",
+                    "detail",
+                    "concept art",
+                    "medium",
+                    "descriptor",
+                }
+                # Check if all listed missing concepts are purely minor / stylistic
+                all_minor = True
+                for concept in raw_result.missing_concepts:
+                    concept_lower = concept.lower()
+                    if not any(indicator in concept_lower for indicator in minor_indicators):
+                        all_minor = False
+                        break
+
+                if all_minor:
+                    logger.info(
+                        f"Normalizing semantic score {final_score} to 100.0. "
+                        f"Remaining missing concepts are purely minor/stylistic: {raw_result.missing_concepts}"
+                    )
+                    final_score = 100.0
+
             logger.info(
                 "Semantic evaluation completed successfully.",
                 extra={
                     "duration_seconds": duration,
-                    "score": raw_result.similarity_score,
+                    "original_score": raw_result.similarity_score,
+                    "final_score": final_score,
                     "confidence": raw_result.confidence_score,
                 },
             )
 
             return EvaluationResult(
-                score=raw_result.similarity_score,
+                score=final_score,
                 feedback=raw_result.player_feedback,
                 matched_concepts=raw_result.matched_concepts,
                 missing_concepts=raw_result.missing_concepts,
