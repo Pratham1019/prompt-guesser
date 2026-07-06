@@ -65,24 +65,50 @@ class AIClient:
 
     async def generate_text_structured(self, prompt: str, schema: Type[T]) -> T:
         """Generates structured JSON output strictly conforming to a Pydantic schema."""
+        # Model fallback priority sequence
+        models_priority = [
+            settings.AI_TEXT_MODEL,  # Main model (e.g. gemini-3.1-flash-lite)
+            "gemini-2.5-flash-lite",  # Fallback 1
+            "gemini-2.5-flash",  # Fallback 2
+            "gemini-1.5-flash",  # Fallback 3
+        ]
 
-        async def _op() -> T:
-            response = await self.client.aio.models.generate_content(
-                model=settings.AI_TEXT_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=schema,
-                    temperature=0.7,
-                ),
-            )
+        # Deduplicate models while keeping order
+        seen = set()
+        models_to_try = [x for x in models_priority if not (x in seen or seen.add(x))]
 
-            if hasattr(response, "parsed") and response.parsed is not None:
-                return cast(T, response.parsed)
+        last_exception = None
+        for model_name in models_to_try:
+            try:
+                logger.info(f"Attempting structured generation with model: {model_name}")
 
-            # Fallback manual parsing just in case
-            if not response.text:
-                raise Exception("No text response returned by the AI provider.")
-            return schema.model_validate_json(response.text)
+                async def _op(m_name=model_name) -> T:
+                    response = await self.client.aio.models.generate_content(
+                        model=m_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=schema,
+                            temperature=0.7,
+                        ),
+                    )
 
-        return await self._execute_with_retry(_op, "generate_text_structured")
+                    if hasattr(response, "parsed") and response.parsed is not None:
+                        return cast(T, response.parsed)
+
+                    # Fallback manual parsing just in case
+                    if not response.text:
+                        raise Exception("No text response returned by the AI provider.")
+                    return schema.model_validate_json(response.text)
+
+                return await self._execute_with_retry(_op, f"generate_text_structured_{model_name}")
+            except Exception as e:
+                logger.warning(
+                    f"Model {model_name} failed during structured generation: {e}. Proceeding to next fallback."
+                )
+                last_exception = e
+
+        logger.error("All configured Gemini models failed during structured generation.")
+        raise AIError(
+            f"All Gemini models failed. Last error: {str(last_exception)}"
+        ) from last_exception
