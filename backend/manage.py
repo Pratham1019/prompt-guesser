@@ -116,6 +116,9 @@ async def cmd_generate_date(args):
                 f"[OK] Success. Challenge ID {challenge.id} created for {challenge.publish_date}."
             )
     except Exception as e:
+        if "already exists" in str(e):
+            print(f"[OK] Skip: A challenge already exists for {target_date}.")
+            sys.exit(0)
         print(f"[ERROR] Generation failed: {e}", file=sys.stderr)
         sys.exit(1)
 
