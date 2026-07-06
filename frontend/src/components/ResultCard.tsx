@@ -36,12 +36,13 @@ export const ResultCard: React.FC<ResultCardProps> = ({
 
   const handleShare = async () => {
     const emojiGrid = getEmojiGrid();
+    const playUrl = window.location.origin;
     const shareText = `Prompt Guesser [${publishDate}]
 Best Score: ${Math.round(bestScore)}%
 Attempts: ${attemptsUsed}/5
 Grid: ${emojiGrid}
 
-Play at http://localhost:5173`;
+Play at ${playUrl}`;
 
     if (navigator.share) {
       try {
