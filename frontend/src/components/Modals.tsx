@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Copy, RotateCcw, AlertTriangle } from 'lucide-react';
-import { getPlayerId, overrideChallengePrompt } from '../api';
+import { getPlayerId } from '../api';
 
 interface ModalProps {
   isOpen: boolean;
