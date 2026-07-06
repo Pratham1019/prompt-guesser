@@ -89,11 +89,23 @@ async def cmd_publish_today(args):
 
 async def cmd_generate_date(args):
     """Generates a challenge for a specific date."""
-    try:
-        target_date = date.fromisoformat(args.date)
-    except ValueError:
-        print(f"[ERROR] Invalid date format '{args.date}'. Must be YYYY-MM-DD.", file=sys.stderr)
-        sys.exit(1)
+    if args.date == "today":
+        import zoneinfo
+        from datetime import datetime
+
+        from app.config import settings
+
+        tz = zoneinfo.ZoneInfo(settings.SCHEDULER_TIMEZONE)
+        target_date = datetime.now(tz).date()
+    else:
+        try:
+            target_date = date.fromisoformat(args.date)
+        except ValueError:
+            print(
+                f"[ERROR] Invalid date format '{args.date}'. Must be YYYY-MM-DD or 'today'.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     try:
         async with SessionLocal() as db:

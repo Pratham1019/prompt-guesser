@@ -26,5 +26,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV HOST=0.0.0.0
 ENV PORT=8000
 
-# Run uvicorn server, running migrations at startup
-CMD uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Run migrations, auto-generate today's challenge, publish it, populate the buffer, and start the uvicorn server
+CMD uv run alembic upgrade head && \
+    uv run python manage.py generate-date --date today && \
+    uv run python manage.py publish-today && \
+    uv run python manage.py populate && \
+    uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
