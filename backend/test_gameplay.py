@@ -29,8 +29,6 @@ async def seed_today_challenge(prompt: str) -> int:
         challenge = PromptChallenge(
             prompt=prompt,
             image_url="/storage/images/test_astronaut.jpg",
-            target_embedding=[0.01] * 768,
-            embedding_model_name="mock-model",
             status="published",
             publish_date=date.today(),
         )
@@ -64,7 +62,7 @@ async def test_scenario_1(client: AsyncClient, challenge_id: int):
     assert session["revealed_prompt"] is None
     assert len(session["attempts"]) == 0
 
-    print("✔ Scenario 1 Passed: Initial session state is clean and prompt is hidden.")
+    print("[OK] Scenario 1 Passed: Initial session state is clean and prompt is hidden.")
 
 
 async def test_scenario_2(client: AsyncClient):
@@ -108,7 +106,7 @@ async def test_scenario_2(client: AsyncClient):
     assert get_data["session"]["status"] == "completed"
     assert get_data["session"]["revealed_prompt"] == "A tiny astronaut fishing from Saturn's rings"
 
-    print("✔ Scenario 2 Passed: Completed after 5 attempts and prompt revealed.")
+    print("[OK] Scenario 2 Passed: Completed after 5 attempts and prompt revealed.")
 
 
 async def test_scenario_3(client: AsyncClient):
@@ -143,7 +141,7 @@ async def test_scenario_3(client: AsyncClient):
     assert data_2["is_completed"] is True
     assert data_2["revealed_prompt"] == "A tiny astronaut fishing from Saturn's rings"
 
-    print("✔ Scenario 3 Passed: Completed instantly on exact match.")
+    print("[OK] Scenario 3 Passed: Completed instantly on exact match.")
 
 
 async def test_scenario_4(client: AsyncClient):
@@ -161,7 +159,7 @@ async def test_scenario_4(client: AsyncClient):
     data = response.json()
     assert "guesses rejected" in data["detail"].lower() or "limit reached" in data["detail"].lower()
 
-    print("✔ Scenario 4 Passed: 6th guess was successfully rejected with HTTP 400.")
+    print("[OK] Scenario 4 Passed: 6th guess was successfully rejected with HTTP 400.")
 
 
 async def test_scenario_5(client: AsyncClient):
@@ -182,7 +180,7 @@ async def test_scenario_5(client: AsyncClient):
     assert session["revealed_prompt"] == "A tiny astronaut fishing from Saturn's rings"
     assert len(session["attempts"]) == 2
 
-    print("✔ Scenario 5 Passed: Completed state returned correctly.")
+    print("[OK] Scenario 5 Passed: Completed state returned correctly.")
 
 
 async def test_scenario_6(client: AsyncClient):
@@ -201,7 +199,7 @@ async def test_scenario_6(client: AsyncClient):
         assert session.attempts_used == 2
         assert session.best_score == 100.0
 
-    print("✔ Scenario 6 Passed: Gameplay session state is verified in the DB.")
+    print("[OK] Scenario 6 Passed: Gameplay session state is verified in the DB.")
 
 
 async def test_validation_errors(client: AsyncClient):
@@ -221,7 +219,7 @@ async def test_validation_errors(client: AsyncClient):
     assert res_err2.status_code == 400
     assert "empty" in res_err2.json()["detail"].lower()
 
-    print("✔ Validation error handling passes correctly.")
+    print("[OK] Validation error handling passes correctly.")
 
 
 async def main():
@@ -245,7 +243,7 @@ async def main():
             print("ALL GAMEPLAY SCENARIOS VERIFIED SUCCESSFULLY")
             print("=========================================")
         except Exception as e:
-            print(f"\n❌ Test suite failed: {e}")
+            print(f"\n[ERROR] Test suite failed: {e}")
             import traceback
 
             traceback.print_exc()

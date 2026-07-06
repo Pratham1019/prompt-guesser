@@ -28,22 +28,22 @@ async def cmd_status(args):
             if status["active_dates"]:
                 print("Active Scheduled Dates:")
                 for d in status["active_dates"]:
-                    print(f"  ✔ {d}")
+                    print(f"  [OK] {d}")
             else:
                 print("Active Scheduled Dates: None")
 
             if status["failed_dates"]:
                 print("Failed Future Dates:")
                 for d in status["failed_dates"]:
-                    print(f"  ❌ {d}")
+                    print(f"  [ERROR] {d}")
 
             if status["missing_dates"]:
                 print("Missing Future Dates:")
                 for d in status["missing_dates"]:
-                    print(f"  ⚠ {d}")
+                    print(f"  [WARNING] {d}")
             print("=========================================\n")
     except Exception as e:
-        print(f"❌ Status check failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Status check failed: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -55,7 +55,7 @@ async def cmd_populate(args):
             print("Auditing buffer and generating challenges. Please wait...")
             generated = await scheduler.populate_buffer()
             if generated:
-                print(f"✔ Completed. Generated {len(generated)} challenges.")
+                print(f"[OK] Completed. Generated {len(generated)} challenges.")
                 for c in generated:
                     # Guard prompt in case it is still None/Failed
                     prompt_text = c.prompt[:60] if c.prompt else "[No Prompt Generated]"
@@ -63,9 +63,9 @@ async def cmd_populate(args):
                         f"  - ID {c.id}: Scheduled for {c.publish_date} (Prompt: '{prompt_text}...')"
                     )
             else:
-                print("✔ Buffer is already fully compliant. No challenges needed.")
+                print("[OK] Buffer is already fully compliant. No challenges needed.")
     except Exception as e:
-        print(f"❌ Buffer population failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Buffer population failed: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -78,12 +78,12 @@ async def cmd_publish_today(args):
             challenge = await scheduler.publish_today_challenge()
             if challenge:
                 print(
-                    f"✔ Success. Challenge ID {challenge.id} published for {challenge.publish_date}."
+                    f"[OK] Success. Challenge ID {challenge.id} published for {challenge.publish_date}."
                 )
             else:
-                print("❌ Publication aborted: no scheduled challenge found for today's date.")
+                print("[ERROR] Publication aborted: no scheduled challenge found for today's date.")
     except Exception as e:
-        print(f"❌ Publication failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Publication failed: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -92,7 +92,7 @@ async def cmd_generate_date(args):
     try:
         target_date = date.fromisoformat(args.date)
     except ValueError:
-        print(f"❌ Invalid date format '{args.date}'. Must be YYYY-MM-DD.", file=sys.stderr)
+        print(f"[ERROR] Invalid date format '{args.date}'. Must be YYYY-MM-DD.", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -100,9 +100,11 @@ async def cmd_generate_date(args):
             gen_svc = ChallengeGenerationService(db)
             print(f"Generating challenge for specific date {target_date}...")
             challenge = await gen_svc.generate_daily_challenge(target_date)
-            print(f"✔ Success. Challenge ID {challenge.id} created for {challenge.publish_date}.")
+            print(
+                f"[OK] Success. Challenge ID {challenge.id} created for {challenge.publish_date}."
+            )
     except Exception as e:
-        print(f"❌ Generation failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Generation failed: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -114,10 +116,28 @@ async def cmd_regenerate_failed(args):
             print(f"Attempting to regenerate failed challenge ID {args.id}...")
             challenge = await gen_svc.regenerate_failed_challenge(args.id)
             print(
-                f"✔ Success. Challenge ID {challenge.id} regenerated and scheduled for {challenge.publish_date}."
+                f"[OK] Success. Challenge ID {challenge.id} regenerated and scheduled for {challenge.publish_date}."
             )
     except Exception as e:
-        print(f"❌ Regeneration failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Regeneration failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+async def cmd_cleanup(args):
+    """Cleans up expired challenges and associated storage objects."""
+    try:
+        async with SessionLocal() as db:
+            scheduler = ChallengeSchedulerService(db)
+            print("Running cleanup of expired challenges. Please wait...")
+            cleaned_ids = await scheduler.run_cleanup()
+            if cleaned_ids:
+                print(
+                    f"[OK] Completed. Successfully deleted {len(cleaned_ids)} expired challenges (IDs: {cleaned_ids})."
+                )
+            else:
+                print("[OK] Completed. No expired challenges found.")
+    except Exception as e:
+        print(f"[ERROR] Cleanup failed: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -135,6 +155,9 @@ def main():
 
     # publish-today
     subparsers.add_parser("publish-today", help="Publish today's scheduled challenge.")
+
+    # cleanup
+    subparsers.add_parser("cleanup", help="Clean up expired challenges and storage files.")
 
     # generate-date
     gen_parser = subparsers.add_parser(
@@ -160,6 +183,8 @@ def main():
             loop.run_until_complete(cmd_populate(args))
         elif args.command == "publish-today":
             loop.run_until_complete(cmd_publish_today(args))
+        elif args.command == "cleanup":
+            loop.run_until_complete(cmd_cleanup(args))
         elif args.command == "generate-date":
             loop.run_until_complete(cmd_generate_date(args))
         elif args.command == "regenerate-failed":

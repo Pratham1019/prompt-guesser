@@ -34,7 +34,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
       .join(' ');
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const emojiGrid = getEmojiGrid();
     const shareText = `Prompt Guesser [${publishDate}]
 Best Score: ${Math.round(bestScore)}%
@@ -43,12 +43,28 @@ Grid: ${emojiGrid}
 
 Play at http://localhost:5173`;
 
-    navigator.clipboard.writeText(shareText);
-    setShared(true);
-    setTimeout(() => setShared(false), 2000);
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Prompt Guesser Results',
+          text: shareText,
+        });
+      } catch (err) {
+        console.log('Share failed or cancelled:', err);
+      }
+    } else {
+      navigator.clipboard.writeText(shareText);
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    }
   };
 
-
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return '#1CFF3B'; // Green
+    if (score >= 70) return '#E0FF1C'; // Yellow
+    if (score >= 40) return '#FFA000'; // Orange
+    return '#FF1CAE'; // Pink
+  };
 
   return (
     <div className="brutal-card result-card animate-pop">
@@ -80,10 +96,32 @@ Play at http://localhost:5173`;
         </div>
       </div>
 
-      {/* Emoji share block */}
+      {/* Guess Pattern (Custom styled Neo-Brutalist blocks in UI, Emojis in Share) */}
       <div className="result-emoji-block" style={{ textAlign: 'center' }}>
         <span className="mono-label" style={{ color: '#555', fontSize: '13px' }}>Guess Pattern</span>
-        <div className="result-emoji-grid">{getEmojiGrid()}</div>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
+          {attempts.map((att, idx) => (
+            <div
+              key={att.id || idx}
+              className="brutal-border-sm brutal-shadow"
+              style={{
+                backgroundColor: getScoreColor(att.similarity_score),
+                color: att.similarity_score < 40 ? '#FFFFFF' : '#111111',
+                padding: '6px 12px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '14px',
+                fontWeight: 800,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                minWidth: '50px',
+              }}
+            >
+              <span style={{ fontSize: '8px', opacity: 0.8, marginBottom: '2px' }}>#{idx + 1}</span>
+              <span>{Math.round(att.similarity_score)}%</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Revealed prompt */}

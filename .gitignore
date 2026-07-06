@@ -153,3 +153,6 @@ dist/
 .gemini/
 .impeccable/
 
+# Local media storage
+backend/storage/
+

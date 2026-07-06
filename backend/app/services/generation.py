@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.logging import logger
 from app.models.challenge import PromptChallenge
 from app.services.ai.client import AIClient
-from app.services.ai.embedding_generator import EmbeddingGeneratorService
 from app.services.ai.image_generator import ImageGeneratorService
 from app.services.ai.prompt_generator import PromptGeneratorService
 from app.services.storage import StorageService
@@ -32,14 +31,12 @@ class ChallengeGenerationService:
         ai_client: Optional[AIClient] = None,
         prompt_svc: Optional[PromptGeneratorService] = None,
         image_svc: Optional[ImageGeneratorService] = None,
-        embedding_svc: Optional[EmbeddingGeneratorService] = None,
         storage_svc: Optional[StorageService] = None,
     ) -> None:
         self.db = db
         self.ai_client = ai_client or AIClient()
         self.prompt_svc = prompt_svc or PromptGeneratorService(self.ai_client)
         self.image_svc = image_svc or ImageGeneratorService(self.ai_client)
-        self.embedding_svc = embedding_svc or EmbeddingGeneratorService(self.ai_client)
         self.storage_svc = storage_svc or StorageService()
 
     async def generate_daily_challenge(self, target_date: date) -> PromptChallenge:
@@ -101,7 +98,7 @@ class ChallengeGenerationService:
         try:
             # 2. Generate Prompt
             prompt_start = time.time()
-            prompt_data = await self.prompt_svc.generate_daily_challenge_prompt()
+            prompt_data = await self.prompt_svc.generate_daily_challenge_prompt(target_date)
             logger.info(
                 "Prompt generated successfully", extra={"duration": time.time() - prompt_start}
             )
@@ -113,27 +110,26 @@ class ChallengeGenerationService:
                 "Image generated successfully", extra={"duration": time.time() - image_start}
             )
 
-            # 4. Generate Embedding
-            embed_start = time.time()
-            embed_data = await self.embedding_svc.generate_embedding(prompt_data.text)
-            logger.info(
-                "Embedding generated successfully", extra={"duration": time.time() - embed_start}
-            )
-
-            # 5. Upload Image
+            # 4. Upload Image
             upload_start = time.time()
-            image_url = await self.storage_svc.upload_image(image_data.image_bytes)
+            image_url = await self.storage_svc.upload_image(
+                image_data.image_bytes, target_date=target_date
+            )
+            storage_path = self.storage_svc.get_storage_path(target_date)
             logger.info(
                 "Image uploaded successfully",
-                extra={"duration": time.time() - upload_start, "url": image_url},
+                extra={
+                    "duration": time.time() - upload_start,
+                    "url": image_url,
+                    "path": storage_path,
+                },
             )
 
-            # 6. Finalize Challenge
+            # 5. Finalize Challenge
             db_start = time.time()
             challenge.prompt = prompt_data.text
             challenge.image_url = image_url
-            challenge.target_embedding = embed_data.vector
-            challenge.embedding_model_name = embed_data.model_name
+            challenge.storage_path = storage_path
             challenge.status = "scheduled"
 
             await self.db.commit()
@@ -221,15 +217,17 @@ class ChallengeGenerationService:
 
         # Run pipeline
         try:
-            prompt_data = await self.prompt_svc.generate_daily_challenge_prompt()
+            target_date_val = challenge.publish_date or date.today()
+            prompt_data = await self.prompt_svc.generate_daily_challenge_prompt(target_date_val)
             image_data = await self.image_svc.generate_image(prompt_data.text)
-            embed_data = await self.embedding_svc.generate_embedding(prompt_data.text)
-            image_url = await self.storage_svc.upload_image(image_data.image_bytes)
+            image_url = await self.storage_svc.upload_image(
+                image_data.image_bytes, target_date=target_date_val
+            )
+            storage_path = self.storage_svc.get_storage_path(target_date_val)
 
             challenge.prompt = prompt_data.text
             challenge.image_url = image_url
-            challenge.target_embedding = embed_data.vector
-            challenge.embedding_model_name = embed_data.model_name
+            challenge.storage_path = storage_path
             challenge.status = "scheduled"
 
             await self.db.commit()

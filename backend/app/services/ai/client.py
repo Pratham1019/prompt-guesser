@@ -86,20 +86,3 @@ class AIClient:
             return schema.model_validate_json(response.text)
 
         return await self._execute_with_retry(_op, "generate_text_structured")
-
-    async def generate_embedding(self, text: str) -> list[float]:
-        """Generates a text embedding vector."""
-
-        async def _op() -> list[float]:
-            response = await self.client.aio.models.embed_content(
-                model=settings.AI_EMBEDDING_MODEL,
-                contents=text,
-                config=types.EmbedContentConfig(
-                    output_dimensionality=settings.AI_EMBEDDING_DIMENSION
-                ),
-            )
-            if not response.embeddings or not response.embeddings[0].values:
-                raise Exception("No embedding vector was returned by the AI provider.")
-            return response.embeddings[0].values
-
-        return await self._execute_with_retry(_op, "generate_embedding")

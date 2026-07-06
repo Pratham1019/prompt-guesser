@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -9,11 +9,10 @@ class PromptChallengeBase(BaseModel):
     image_url: str
     status: str = "draft"
     publish_date: Optional[date] = None
-    embedding_model_name: str
 
 
 class PromptChallengeCreate(PromptChallengeBase):
-    target_embedding: List[float]
+    pass
 
 
 class PromptChallengeResponse(PromptChallengeBase):

@@ -53,8 +53,6 @@ class Settings(BaseSettings):
     # AI Integration Configuration
     AI_API_KEY: str = "your-ai-api-key-here"
     AI_IMAGE_MODEL: str = "imagen-4.0-generate-001"
-    AI_EMBEDDING_MODEL: str = "gemini-embedding-2"
-    AI_EMBEDDING_DIMENSION: int = 768
     AI_TEXT_MODEL: str = "gemini-3.1-flash-lite"
     AI_EVALUATOR_TYPE: str = "gemini"
     AI_RETRY_COUNT: int = 3
@@ -66,7 +64,11 @@ class Settings(BaseSettings):
     HF_IMAGE_MODEL: str = "black-forest-labs/FLUX.1-schnell"
 
     # Storage Configuration
+    IMAGE_STORAGE_PROVIDER: str = "local"
     STORAGE_LOCAL_DIR: str = "./storage/images"
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
 
     # Scheduler Configuration
     SCHEDULER_BUFFER_SIZE: int = 14

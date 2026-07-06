@@ -88,6 +88,17 @@ class ChallengeSchedulerService:
         start_time = time.time()
         logger.info("Scheduler buffer check initiated.")
 
+        # Self-healing: Reset any stuck "generating" challenges back to "failed"
+        # so they can be identified as missing/failed and regenerated.
+        from sqlalchemy import update
+
+        await self.db.execute(
+            update(PromptChallenge)
+            .where(PromptChallenge.status == "generating")
+            .values(status="failed")
+        )
+        await self.db.commit()
+
         status = await self.get_buffer_status()
         logger.info(
             f"Current buffer status - Configured: {self.buffer_size}, "
@@ -186,3 +197,13 @@ class ChallengeSchedulerService:
         await self.db.commit()
         await self.db.refresh(challenge_to_publish)
         return challenge_to_publish
+
+    async def run_cleanup(self) -> List[int]:
+        """
+        Runs the cleanup service task to remove expired daily challenges
+        and their associated storage objects from cloud bucket.
+        """
+        from app.services.cleanup import CleanupService
+
+        cleanup_svc = CleanupService(self.db)
+        return await cleanup_svc.cleanup_expired_challenges()

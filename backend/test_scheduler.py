@@ -9,7 +9,7 @@ from app.config import settings
 from app.database import SessionLocal, engine
 from app.models.base import Base
 from app.models.challenge import PromptChallenge
-from app.services.ai.schemas import GeneratedEmbedding, GeneratedImage, GeneratedPrompt
+from app.services.ai.schemas import GeneratedImage, GeneratedPrompt
 from app.services.generation import ChallengeGenerationService, GenerationOrchestratorError
 from app.services.scheduler import ChallengeSchedulerService
 
@@ -38,8 +38,6 @@ async def run_scenario_1():
                 publish_date=d,
                 prompt=f"Mock Prompt for {d}",
                 image_url=f"/storage/mock_{d}.jpg",
-                target_embedding=[0.01] * 768,
-                embedding_model_name="mock-model",
                 status="scheduled",
             )
 
@@ -70,7 +68,7 @@ async def run_scenario_1():
             mock_gen_svc.generate_daily_challenge.assert_any_call(expected_dates[2])
 
             print(
-                "✔ Scenario 1 Passed: Successfully checked buffer status and generated 3 challenges."
+                "[OK] Scenario 1 Passed: Successfully checked buffer status and generated 3 challenges."
             )
 
 
@@ -91,8 +89,6 @@ async def run_scenario_2():
                 publish_date=today + timedelta(days=i),
                 prompt=f"Seed Prompt {i}",
                 image_url=f"/storage/seed_{i}.jpg",
-                target_embedding=[0.01] * 768,
-                embedding_model_name="mock-model",
                 status="scheduled",
             )
             db.add(c)
@@ -115,7 +111,7 @@ async def run_scenario_2():
             assert len(generated) == 0, f"Expected 0 generated, got {len(generated)}"
             mock_gen_svc.generate_daily_challenge.assert_not_called()
 
-            print("✔ Scenario 2 Passed: Compliant buffer detected, 0 challenges generated.")
+            print("[OK] Scenario 2 Passed: Compliant buffer detected, 0 challenges generated.")
 
 
 async def run_scenario_3():
@@ -140,8 +136,6 @@ async def run_scenario_3():
                     publish_date=target_date,
                     prompt=f"Mock Prompt {target_date}",
                     image_url=f"/storage/mock_{target_date}.jpg",
-                    target_embedding=[0.01] * 768,
-                    embedding_model_name="mock-model",
                     status="scheduled",
                 )
 
@@ -160,7 +154,7 @@ async def run_scenario_3():
             mock_gen_svc.generate_daily_challenge.assert_any_call(today + timedelta(days=3))
 
             print(
-                "✔ Scenario 3 Passed: Scheduler recovered from failure on day 1 and successfully generated days 2 and 3."
+                "[OK] Scenario 3 Passed: Scheduler recovered from failure on day 1 and successfully generated days 2 and 3."
             )
 
 
@@ -177,9 +171,6 @@ async def run_scenario_4():
         text="Real-looking mock prompt", theme="Retro", category="Obj", difficulty="easy"
     )
     mock_image = GeneratedImage(image_bytes=b"jpeg_mock_bytes")
-    mock_embedding = GeneratedEmbedding(
-        vector=[0.02] * 768, model_name="gemini-embedding-2", dimension=768
-    )
 
     async with SessionLocal() as db:
         with patch.object(settings, "SCHEDULER_BUFFER_SIZE", 2):
@@ -188,7 +179,6 @@ async def run_scenario_4():
             # Patch actual AI client methods inside generation service
             gen_svc.prompt_svc.generate_daily_challenge_prompt = AsyncMock(return_value=mock_prompt)
             gen_svc.image_svc.generate_image = AsyncMock(return_value=mock_image)
-            gen_svc.embedding_svc.generate_embedding = AsyncMock(return_value=mock_embedding)
             gen_svc.storage_svc.upload_image = AsyncMock(return_value="/storage/images/mock.jpg")
 
             scheduler = ChallengeSchedulerService(db, generation_svc=gen_svc)
@@ -212,7 +202,7 @@ async def run_scenario_4():
             )
 
             print(
-                "✔ Scenario 4 Passed: Repeated runs are fully idempotent and create no duplicates."
+                "[OK] Scenario 4 Passed: Repeated runs are fully idempotent and create no duplicates."
             )
 
 
@@ -228,8 +218,6 @@ async def run_publication_tests():
             publish_date=today,
             prompt="Today's challenge prompt",
             image_url="/storage/today.jpg",
-            target_embedding=[0.01] * 768,
-            embedding_model_name="mock-model",
             status="scheduled",
         )
         db.add(today_challenge)
@@ -250,7 +238,7 @@ async def run_publication_tests():
         assert pub_challenge_rerun.id == pub_challenge.id
 
         print(
-            "✔ Publication tests passed: Successfully published scheduled challenge and verified idempotency."
+            "[OK] Publication tests passed: Successfully published scheduled challenge and verified idempotency."
         )
 
 
@@ -268,7 +256,7 @@ async def main():
         print("ALL SCHEDULER SCENARIOS VERIFIED SUCCESSFULLY")
         print("=========================================")
     except Exception as e:
-        print(f"\n❌ Test suite failed: {e}")
+        print(f"\n[ERROR] Test suite failed: {e}")
         import traceback
 
         traceback.print_exc()

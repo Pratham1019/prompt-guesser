@@ -184,47 +184,32 @@ async def override_challenge(payload: ChallengeDebugOverride, db: AsyncSession =
     challenge = result.scalar_one_or_none()
 
     from app.services.ai.client import AIClient
-    from app.services.ai.embedding_generator import EmbeddingGeneratorService
     from app.services.ai.image_generator import ImageGeneratorService
     from app.services.storage import StorageService
 
-    embedding_status = "success"
     image_status = "success"
 
     try:
         ai_client = AIClient()
     except Exception as conf_err:
         ai_client = None
-        embedding_status = f"skipped: {conf_err}"
         image_status = f"skipped: {conf_err}"
 
-    # 1. Generate embedding matching the new prompt
-    if ai_client:
-        try:
-            embedding_svc = EmbeddingGeneratorService(ai_client)
-            embed_data = await embedding_svc.generate_embedding(payload.prompt)
-            target_embedding = embed_data.vector
-            embedding_model_name = embed_data.model_name
-        except Exception as e:
-            logger.warning(
-                f"Could not generate embedding for debug override: {e}. Keeping fallback mock embedding."
-            )
-            target_embedding = [0.01] * 768
-            embedding_model_name = "mock-model"
-            embedding_status = f"failed: {e}"
-    else:
-        target_embedding = [0.01] * 768
-        embedding_model_name = "mock-model"
+    # 1. Generate and upload image matching the new prompt
 
     # 2. Generate and upload image matching the new prompt
     image_url = payload.image_url
+    storage_path = None
     if not image_url:
         if ai_client:
             try:
                 image_svc = ImageGeneratorService(ai_client)
                 storage_svc = StorageService()
                 image_data = await image_svc.generate_image(payload.prompt)
-                image_url = await storage_svc.upload_image(image_data.image_bytes)
+                image_url = await storage_svc.upload_image(
+                    image_data.image_bytes, target_date=today
+                )
+                storage_path = storage_svc.get_storage_path(today)
             except Exception as e:
                 logger.warning(
                     f"Could not generate image for debug override: {e}. Falling back to dynamic mock placeholder image."
@@ -239,7 +224,10 @@ async def override_challenge(payload: ChallengeDebugOverride, db: AsyncSession =
                         )
                         if resp.status_code == 200:
                             storage_svc = StorageService()
-                            image_url = await storage_svc.upload_image(resp.content)
+                            image_url = await storage_svc.upload_image(
+                                resp.content, target_date=today
+                            )
+                            storage_path = storage_svc.get_storage_path(today)
                         else:
                             image_url = "/storage/images/test_astronaut.jpg"
                 except Exception as fetch_err:
@@ -253,8 +241,7 @@ async def override_challenge(payload: ChallengeDebugOverride, db: AsyncSession =
         challenge = PromptChallenge(
             prompt=payload.prompt,
             image_url=image_url,
-            target_embedding=target_embedding,
-            embedding_model_name=embedding_model_name,
+            storage_path=storage_path,
             status="published",
             publish_date=today,
         )
@@ -262,8 +249,7 @@ async def override_challenge(payload: ChallengeDebugOverride, db: AsyncSession =
     else:
         challenge.prompt = payload.prompt
         challenge.image_url = image_url
-        challenge.target_embedding = target_embedding
-        challenge.embedding_model_name = embedding_model_name
+        challenge.storage_path = storage_path
 
     await db.commit()
     await db.refresh(challenge)
@@ -282,6 +268,5 @@ async def override_challenge(payload: ChallengeDebugOverride, db: AsyncSession =
         "image_url": challenge.image_url,
         "debug_info": {
             "image_generation": image_status,
-            "embedding_generation": embedding_status,
         },
     }

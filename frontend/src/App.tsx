@@ -183,7 +183,6 @@ function App() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onReset={handleResetSession}
-        onOverrideChallenge={fetchChallenge}
       />
     </div>
   );

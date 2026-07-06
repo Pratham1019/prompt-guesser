@@ -1,5 +1,3 @@
-from typing import List
-
 from pydantic import BaseModel, Field
 
 
@@ -17,11 +15,3 @@ class GeneratedImage(BaseModel):
 
     image_bytes: bytes
     mime_type: str = "image/jpeg"
-
-
-class GeneratedEmbedding(BaseModel):
-    """Structured response for a generated embedding."""
-
-    vector: List[float]
-    model_name: str
-    dimension: int
