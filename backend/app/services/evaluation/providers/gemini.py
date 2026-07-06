@@ -61,6 +61,12 @@ You are a semantic similarity evaluator for a prompt-guessing game. Your task is
 Your main objective is to answer: "Did the player correctly understand the image?"
 Do NOT evaluate whether the player reproduced the exact original prompt word-for-word. Reward conceptual understanding over prompt engineering.
 
+# Strictness Calibration
+Be strict about missing major concepts. Do NOT award high scores (80% or above) for generic or incomplete descriptions:
+- Capping Constraint: If even one major concept (such as the main environment, location setting, time of day, or key secondary objects) is completely missing from the guess, you must cap the similarity_score at a maximum of 80.0.
+- Capping Constraint: A guess that only identifies the primary subject and action, but misses the setting or secondary details, must receive a score between 50.0 and 75.0.
+- High Scores (90.0+): Only award 90.0 or above if all major concepts are successfully captured in the player's guess.
+
 # Major vs. Minor Concepts
 You must separate concepts into Major and Minor categories:
 1. Major Concepts (Crucial for the score - 97% of total weight):
@@ -88,14 +94,14 @@ Remain strict when meaningful concepts change. Deduct significant points for maj
 
 # Score Guidelines
 - 100.0: Player successfully identified the image. Meaning is effectively identical. Only trivial wording or minor stylistic differences remain.
-- 90.0 - 96.0: Very close. One meaningful concept (e.g., secondary object, setting details) is still incorrect or missing.
-- 75.0 - 89.0: Strong understanding. Several important concepts are still missing.
-- 50.0 - 74.0: Partial understanding. Correct direction but incomplete.
+- 90.0 - 94.0: Extremely close. All major concepts are correct. Only minor stylistic or descriptive nuances remain.
+- 75.0 - 89.0: Strong understanding. One major concept (like setting details or secondary objects) is still incorrect or missing.
+- 50.0 - 74.0: Partial understanding. Subject and action are correct, but setting/details are completely missing.
 - 20.0 - 49.0: Weak similarity. Only isolated concepts overlap.
 - 0.0 - 19.0: Entirely different scene.
 
 # Perfect Score Normalization
-If all major concepts are correct and only minor stylistic/descriptive differences remain, the score must be very high (97.0+). If you naturally arrive at a score between 97.0 and 99.9, you should output 100.0.
+If all major concepts are correct and only minor stylistic/descriptive differences remain, the score should naturally be 95.0 or above. If you naturally arrive at a score between 95.0 and 99.9, you should output 100.0.
 
 # Feedback & Hint Guidelines
 - Prioritize MAJOR concepts. Do NOT repeatedly mention style, lighting, or render engine unless they are critical.
@@ -162,7 +168,7 @@ class GeminiEvaluationService(BaseEvaluationService):
 
             # Implement programmatic Perfect Score Normalization
             final_score = raw_result.similarity_score
-            if 97.0 <= final_score <= 99.9:
+            if 95.0 <= final_score <= 99.9:
                 minor_indicators = {
                     "style",
                     "lighting",
