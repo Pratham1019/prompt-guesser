@@ -73,9 +73,13 @@ class Settings(BaseSettings):
     # Scheduler Configuration
     SCHEDULER_BUFFER_SIZE: int = 14
     SCHEDULER_ENABLED: bool = True
-    SCHEDULER_TIMEZONE: str = "UTC"
+    SCHEDULER_TIMEZONE: str = "Asia/Kolkata"
     SCHEDULER_MAX_RETRIES: int = 3
     SCHEDULER_RETRY_DELAY_SECONDS: int = 5
+
+    # Cron Job Automation
+    CRON_SECRET: str = "dev-secret-key"
+    CHALLENGE_RETENTION_DAYS: int = 7
 
 
 settings = Settings()

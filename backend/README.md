@@ -32,7 +32,7 @@ CORS_ORIGINS='["http://localhost:3000", "http://localhost:5173", "http://localho
 
 # Supabase Database Connection
 # Expects a postgresql+asyncpg driver format
-DATABASE_URL="postgresql+asyncpg://postgres:<PASSWORD>@db.izfqgpzimsvoizirhqyc.supabase.co:5432/postgres"
+DATABASE_URL="postgresql+asyncpg://postgres:<PASSWORD>@db.your-project-ref.supabase.co:5432/postgres"
 
 # Google Gemini API
 AI_API_KEY="your-gemini-api-key-here"
@@ -43,7 +43,7 @@ HF_API_TOKEN="your-hf-access-token-here"
 HF_IMAGE_MODEL="black-forest-labs/FLUX.1-schnell"
 
 # Supabase Storage Configurations
-SUPABASE_URL="https://izfqgpzimsvoizirhqyc.supabase.co"
+SUPABASE_URL="https://your-project-ref.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
 SUPABASE_STORAGE_BUCKET="daily-challenges"
 ```
@@ -77,15 +77,89 @@ uv run alembic revision --autogenerate -m "description_of_changes"
 
 ---
 
-## 🧹 Expired Challenge Cleanup
+## 📅 Daily Automation & Cron Scheduler
 
-The backend includes a dedicated **`CleanupService`** to remove historical challenge data and their associated Supabase storage images.
+The backend uses a secure, scheduler-agnostic **HTTP push model** to handle daily automated maintenance tasks. Instead of running a persistent background scheduler loop (which consumes extra memory and cloud credits), the application exposes a hidden administrative endpoint:
 
-* Run the manual cleanup CLI command:
-  ```bash
-  python manage.py cleanup
-  ```
-* In production, this command is run automatically via a daily cron schedule to enforce your data retention policy (default is `30` days, configurable via `SCHEDULER_RETENTION_DAYS`).
+```http
+POST /api/v1/internal/cron/daily
+```
+
+When triggered, this endpoint executes the following workflow atomically and idempotently:
+1. **Challenge Publication:** Publishes today's daily challenge.
+2. **Buffer Maintenance:** Re-populates the future challenge queue to match your configured target buffer (e.g., 14 days), generating new challenges using AI as needed.
+3. **Expired Cleanups:** Identifies and cleans up database records and storage images older than the configured retention policy.
+
+---
+
+### 🔒 Security & Authentication
+
+The endpoint is protected by a secret key set in your environment variables:
+* **Variable Key:** `CRON_SECRET`
+* **Default (Dev):** `dev-secret-key` (disabled in production environments for safety)
+
+Every request sent to the cron endpoint must authenticate using either:
+* An HTTP header: `Authorization: Bearer <CRON_SECRET>`
+* A custom header: `X-Cron-Secret: <CRON_SECRET>`
+
+Requests failing validation will be rejected with an `HTTP 401 Unauthorized` status. The endpoint is hidden from normal OpenAPI/Swagger documentation (`include_in_schema=False`).
+
+---
+
+### 🚦 Concurrency Protection & Idempotency
+
+* **Concurrency Lock:** To prevent race conditions or duplicate AI image generation if multiple schedulers trigger the endpoint concurrently, the endpoint uses an active execution lock, immediately returning `HTTP 409 Conflict` if another automation task is currently in progress.
+* **Idempotency:** Triggering the endpoint multiple times in a row has no adverse effects. Already published dates, pre-generated images, and active buffers are skipped automatically.
+
+---
+
+### ☁️ Scheduling Integration Options
+
+Since your database is file-based (SQLite) and mounted on a **Read-Write-Once (RWO)** persistent volume, you **cannot** run python CLI commands (like `manage.py populate`) from a separate container; the volume will fail to mount. Instead, choose one of these container-safe HTTP trigger methods:
+
+#### Option 1: Railway HTTP Cron Trigger (Recommended for Native Setup)
+You can deploy a tiny, volume-less helper service on Railway that triggers your main backend over the internal private network.
+
+1. Add a **New Service** in your Railway project.
+2. Select **Deploy from Image** and use: `curlimages/curl:latest`
+3. Under the service's **Settings -> Deployments -> Deploy Trigger**, set the schedule (e.g., `0 0 * * *` for midnight UTC).
+4. Configure the **Start Command** for the service:
+   ```bash
+   curl -f -X POST "http://backend:8000/api/v1/internal/cron/daily" -H "Authorization: Bearer ${CRON_SECRET}"
+   ```
+   *(Replace `backend:8000` with your backend service name and internal port).*
+5. Inject the `CRON_SECRET` environment variable into this curl service.
+
+#### Option 2: cron-job.org (Free & External)
+A reliable, external service that sends scheduled HTTP webhooks.
+
+1. Create a free account at [cron-job.org](https://cron-job.org/).
+2. Create a new cron job pointing to your public backend URL:
+   `https://your-backend-domain.up.railway.app/api/v1/internal/cron/daily`
+3. Set the method to **POST** and schedule it daily.
+4. Add the Request Header:
+   * **Key:** `Authorization`
+   * **Value:** `Bearer <your_cron_secret>`
+
+#### Option 3: GitHub Actions Workflow
+Add a daily GitHub workflow at `.github/workflows/daily_cron.yml`:
+
+```yaml
+name: Daily Automation Cron
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Daily Cron
+        run: |
+          curl -f -X POST "https://your-backend-domain.up.railway.app/api/v1/internal/cron/daily" \
+               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+```
 
 ---
 
@@ -95,11 +169,14 @@ Integration scenario tests can be run using a local SQLite file to bypass networ
 
 ```bash
 # Run gameplay flows scenario test
-DATABASE_URL="sqlite+aiosqlite:///./test_temp.db" TZ="UTC" uv run python test_gameplay.py
+DATABASE_URL="sqlite+aiosqlite:///./test_temp.db" TZ="Asia/Kolkata" uv run python test_gameplay.py
 
 # Run scheduler lookahead & publication test
-DATABASE_URL="sqlite+aiosqlite:///./test_temp.db" TZ="UTC" uv run python test_scheduler.py
+DATABASE_URL="sqlite+aiosqlite:///./test_temp.db" TZ="Asia/Kolkata" uv run python test_scheduler.py
 
 # Run semantic judge evaluation test
-DATABASE_URL="sqlite+aiosqlite:///./test_temp.db" TZ="UTC" uv run python test_evaluator.py
+DATABASE_URL="sqlite+aiosqlite:///./test_temp.db" TZ="Asia/Kolkata" uv run python test_normalization.py
+
+# Run secure cron endpoint tests
+DATABASE_URL="sqlite+aiosqlite:///./test_temp.db" TZ="Asia/Kolkata" uv run python test_cron_endpoint.py
 ```

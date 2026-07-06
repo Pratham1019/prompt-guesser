@@ -21,7 +21,7 @@ class CleanupService:
     def __init__(self, db: AsyncSession, storage_svc: Optional[StorageService] = None) -> None:
         self.db = db
         self.storage_svc = storage_svc or StorageService()
-        self.retention_days = getattr(settings, "SCHEDULER_RETENTION_DAYS", 30)
+        self.retention_days = getattr(settings, "CHALLENGE_RETENTION_DAYS", 7)
 
     async def cleanup_expired_challenges(self) -> List[int]:
         """
