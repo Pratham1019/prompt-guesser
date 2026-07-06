@@ -175,11 +175,17 @@ h1 {
   justify-content: space-between;
   align-items: center;
   border-bottom: 4px solid var(--ink-brutal);
-  padding: var(--space-md) var(--space-lg);
+  padding: 12px var(--space-md);
   background-color: var(--white);
   position: sticky;
   top: 0;
   z-index: 40;
+}
+
+@media (min-width: 640px) {
+  .header-bar {
+    padding: var(--space-md) var(--space-lg);
+  }
 }
 
 .header-brand {
@@ -192,8 +198,20 @@ h1 {
   display: flex;
   align-items: center;
   gap: var(--space-xxs);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
   margin: 0;
+}
+
+.brand-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 1rem;
+  font-weight: 800;
+  border: 2px solid var(--ink-brutal);
+  box-shadow: 1px 1px 0px var(--ink-brutal);
+  user-select: none;
 }
 
 .header-brand-text {
@@ -204,6 +222,12 @@ h1 {
   .header-brand h1 {
     font-size: var(--font-size-xl);
     gap: var(--space-xs);
+  }
+  .brand-letter {
+    padding: 4px 8px;
+    font-size: 1.25rem;
+    border-width: 3px;
+    box-shadow: 2px 2px 0px var(--ink-brutal);
   }
   .header-brand-text {
     display: inline-block;
@@ -220,6 +244,42 @@ h1 {
 @media (min-width: 640px) {
   .header-actions {
     gap: var(--space-md);
+  }
+}
+
+/* Header Square Buttons */
+.header-btn {
+  width: 38px !important;
+  height: 38px !important;
+  padding: 0 !important;
+  border: 3px solid var(--ink-brutal) !important;
+  box-shadow: 2px 2px 0px 0px var(--ink-brutal) !important;
+}
+
+.header-btn:hover {
+  transform: translate(-1px, -1px) !important;
+  box-shadow: 3px 3px 0px 0px var(--ink-brutal) !important;
+}
+
+.header-btn:active {
+  transform: translate(2px, 2px) !important;
+  box-shadow: 0px 0px 0px 0px var(--ink-brutal) !important;
+}
+
+@media (min-width: 640px) {
+  .header-btn {
+    width: 48px !important;
+    height: 48px !important;
+    border-width: 4px !important;
+    box-shadow: 4px 4px 0px 0px var(--ink-brutal) !important;
+  }
+  .header-btn:hover {
+    transform: translate(-2px, -2px) !important;
+    box-shadow: 6px 6px 0px 0px var(--ink-brutal) !important;
+  }
+  .header-btn:active {
+    transform: translate(4px, 4px) !important;
+    box-shadow: 0px 0px 0px 0px var(--ink-brutal) !important;
   }
 }
 

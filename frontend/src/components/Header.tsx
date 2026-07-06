@@ -18,12 +18,12 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="header-bar brutal-shadow">
       <div className="header-brand">
         <h1>
-          <span className="bg-[#1C3BFF] text-white px-2 py-1 brutal-border-sm">P</span>
-          <span className="bg-[#FFA000] text-black px-2 py-1 brutal-border-sm">R</span>
-          <span className="bg-[#FF1CAE] text-white px-2 py-1 brutal-border-sm">O</span>
-          <span className="bg-[#E0FF1C] text-black px-2 py-1 brutal-border-sm">M</span>
-          <span className="bg-[#1CFF3B] text-black px-2 py-1 brutal-border-sm">P</span>
-          <span className="bg-[#111111] text-white px-2 py-1 brutal-border-sm">T</span>
+          <span className="brand-letter bg-[#1C3BFF] text-white">P</span>
+          <span className="brand-letter bg-[#FFA000] text-black">R</span>
+          <span className="brand-letter bg-[#FF1CAE] text-white">O</span>
+          <span className="brand-letter bg-[#E0FF1C] text-black">M</span>
+          <span className="brand-letter bg-[#1CFF3B] text-black">P</span>
+          <span className="brand-letter bg-[#111111] text-white">T</span>
           <span className="header-brand-text">Guesser</span>
         </h1>
       </div>
@@ -38,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={onOpenHelp}
-          className="brutal-btn w-12 h-12 brutal-shadow bg-[#FFA000]"
+          className="brutal-btn header-btn bg-[#FFA000]"
           title="How to Play"
         >
           <HelpCircle size={20} />
@@ -46,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={onOpenAbout}
-          className="brutal-btn w-12 h-12 brutal-shadow bg-[#1CFF3B]"
+          className="brutal-btn header-btn bg-[#1CFF3B]"
           title="About Game"
         >
           <Info size={20} />
@@ -54,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={onOpenSettings}
-          className="brutal-btn w-12 h-12 brutal-shadow bg-[#FF1CAE]"
+          className="brutal-btn header-btn bg-[#FF1CAE]"
           title="Settings"
         >
           <Settings size={20} />
