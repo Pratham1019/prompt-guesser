@@ -1,0 +1,15 @@
+name: Daily Automation Cron
+
+on:
+  schedule:
+    - cron: '30 18 * * *' # 18:30 UTC is exactly 12:00 AM IST (Asia/Kolkata)
+  workflow_dispatch: # Allows you to click "Run workflow" manually from GitHub Actions UI
+
+jobs:
+  trigger_cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Daily Cron HTTP Request
+        run: |
+          curl -f -X POST "https://prompt-guesser-production.up.railway.app/api/v1/internal/cron/daily" \
+               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
